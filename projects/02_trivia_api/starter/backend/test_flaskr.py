@@ -15,7 +15,7 @@ class TriviaTestCase(unittest.TestCase):
         self.app = create_app()
         self.client = self.app.test_client
         self.database_name = "trivia_test"
-        self.database_path = "postgresql://{}/{}".format('postgres@localhost:5432', self.database_name)
+        self.database_path = "postgres://{}/{}".format('localhost:5432', self.database_name)
         setup_db(self.app, self.database_path)
 
         # binds the app to the current context
@@ -29,6 +29,7 @@ class TriviaTestCase(unittest.TestCase):
             new_category2 = Category(type="Art")
             # 添加可以被搜索的问题
             question = Question(question='What is the capital of France?', answer='Paris', difficulty=1, category=1)
+            self.new_question={'question': 'What is the capital of France?', 'answer':'Paris', 'difficulty':'1', 'category':'1'}
             self.db.session.add(question)
             self.db.session.add(new_category1)
             self.db.session.add(new_category2)
@@ -129,6 +130,46 @@ class TriviaTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 404)
         self.assertFalse(data['success'])
         self.assertEqual(data['message'], 'resource not found')
+    
+    def test_get_random_question(self):
+        # 插入一些问题以供测试
+        res = self.client().post('/questions', json=self.new_question)
+        self.assertEqual(res.status_code, 200)
+
+        # 测试获取随机问题
+        res = self.client().post('/quizzes', json={
+            'previous_questions': [],
+            'quiz_category': {'id': '3'}
+        })
+        data = json.loads(res.data)
+
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(data['success'])
+        self.assertIsNotNone(data['question'])
+
+    def test_no_questions_left_to_ask(self):
+        # 假设所有问题都已被回答
+        res = self.client().post('/quizzes', json={
+            'previous_questions': [11, 12, 13, 14, 15],  # 假设这些 ID 已存在
+            'quiz_category': {'id': '13'}
+        })
+        data = json.loads(res.data)
+
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(data['success'])
+        self.assertIsNone(data['question'])
+
+    def test_no_category_questions(self):
+        # 测试一个没有问题的类别
+        res = self.client().post('/quizzes', json={
+            'previous_questions': [],
+            'quiz_category': {'id': '99'}  # 假设此 ID 的类别没有问题
+        })
+        data = json.loads(res.data)
+
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(data['success'])
+        self.assertIsNone(data['question'])
 
 
 # Make the tests conveniently executable
